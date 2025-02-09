@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+
+thesis_env/
+
+db.sqlite3
+*.sqlite3
+
+.vscode/
+
+.env
