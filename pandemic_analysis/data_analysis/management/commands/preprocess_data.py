@@ -36,7 +36,7 @@ def preprocess_data():
     train_data[features] = scaler.fit_transform(train_data[features])
     test_data[features] = scaler.transform(test_data[features])
     
-    print("Preprocessing complete. Train size:", len(train_data), "Test size:", len(test_data))
+    print(f"Preprocessing complete. Train size:{len(train_data)}, Test size: {len(test_data)}")
     return train_data, test_data, scaler
 
 class Command(BaseCommand):
