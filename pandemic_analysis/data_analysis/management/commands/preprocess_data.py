@@ -20,6 +20,10 @@ def preprocess_data():
     
     # Sort by date
     data = data.sort_values(by='date')
+
+    data['date'] = pd.to_datetime(data['date'])
+    data.set_index('date', inplace=True)
+    data['date'] = data.index
     
     # Handle missing values (fill NaNs with median values)
     data.fillna(data.median(numeric_only=True), inplace=True)

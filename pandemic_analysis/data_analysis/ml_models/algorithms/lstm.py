@@ -1,9 +1,7 @@
 import tensorflow as tf
 from tensorflow import keras
-from keras import layers,Sequential
+from keras import Sequential
 from tensorflow.python.keras.layers import Dense,LSTM
-
-
 import numpy as np
 import os
 
@@ -19,3 +17,5 @@ def train_lstm(X_train, y_train):
     model.fit(X_train, y_train, epochs=50, batch_size=32, verbose=1)
     model.save(os.path.join("trained_models", "lstm_model.keras"))
     return model 
+
+
