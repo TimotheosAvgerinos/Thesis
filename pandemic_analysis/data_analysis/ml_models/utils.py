@@ -4,32 +4,52 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib
+matplotlib.use('Agg')  # Use a non-interactive backend for PNGs
+import matplotlib.pyplot as plt
 
-def evaluate_model(model, test_data, features, return_predictions=False):
 
+
+def evaluate_model(model, test_data, features, return_predictions=False, scaler=None):
     metrics = {}
     predictions = {}
 
     for feature in features:
-        y_true = test_data[feature]
-        X_test = test_data[features]
+        y_true_scaled = test_data[feature]
+        X_test_scaled = test_data[features]
 
+        # Predict
         if hasattr(model, 'forecast') and 'arima' in str(type(model)).lower():
-            y_pred = model.forecast(steps=len(y_true))
+            y_pred_scaled = model.forecast(steps=len(y_true_scaled))
         elif hasattr(model, 'predict'):
             if 'lstm' in str(type(model)).lower():
-                X_lstm = np.expand_dims(X_test.values, axis=1)
-                y_pred_all = model.predict(X_lstm)
+                X_lstm = np.expand_dims(X_test_scaled.values, axis=1)
+                y_pred_all_scaled = model.predict(X_lstm)
             else:
-                y_pred_all = model.predict(X_test)
+                y_pred_all_scaled = model.predict(X_test_scaled)
 
-            if y_pred_all.ndim == 2 and y_pred_all.shape[1] == len(features):
+            if y_pred_all_scaled.ndim == 2 and y_pred_all_scaled.shape[1] == len(features):
                 idx = features.index(feature)
-                y_pred = y_pred_all[:, idx]
+                y_pred_scaled = y_pred_all_scaled[:, idx]
             else:
-                y_pred = y_pred_all
+                y_pred_scaled = y_pred_all_scaled
         else:
             continue
+
+        # Inverse transform if scaler is provided
+        if scaler:
+            dummy_true = np.zeros((len(y_true_scaled), len(features)))
+            dummy_pred = np.zeros((len(y_pred_scaled), len(features)))
+
+            feature_idx = features.index(feature)
+            dummy_true[:, feature_idx] = y_true_scaled
+            dummy_pred[:, feature_idx] = y_pred_scaled
+
+            y_true = scaler.inverse_transform(dummy_true)[:, feature_idx]
+            y_pred = scaler.inverse_transform(dummy_pred)[:, feature_idx]
+        else:
+            y_true = y_true_scaled
+            y_pred = y_pred_scaled
 
         metrics[feature] = {
             'MAE': mean_absolute_error(y_true, y_pred),
@@ -39,7 +59,7 @@ def evaluate_model(model, test_data, features, return_predictions=False):
 
         if return_predictions:
             predictions[feature] = {
-                "y_true": y_true.reset_index(drop=True),
+                "y_true": pd.Series(y_true).reset_index(drop=True),
                 "y_pred": pd.Series(y_pred).reset_index(drop=True)
             }
 
@@ -48,16 +68,42 @@ def evaluate_model(model, test_data, features, return_predictions=False):
     return metrics
 
 
+def predict_and_inverse(model, test_data, feature, features, scaler):
+    y_true_scaled = test_data[feature]
+    X_test_scaled = test_data[features]
+
+    # Predict
+    if hasattr(model, 'forecast') and 'arima' in str(type(model)).lower():
+        y_pred_scaled = model.forecast(steps=len(y_true_scaled))
+    elif hasattr(model, 'predict'):
+        if 'lstm' in str(type(model)).lower():
+            X_lstm = np.expand_dims(X_test_scaled.values, axis=1)
+            y_pred_all = model.predict(X_lstm)
+        else:
+            y_pred_all = model.predict(X_test_scaled)
+
+        if y_pred_all.ndim == 2 and y_pred_all.shape[1] == len(features):
+            idx = features.index(feature)
+            y_pred_scaled = y_pred_all[:, idx]
+        else:
+            y_pred_scaled = y_pred_all
+    else:
+        raise ValueError("Unsupported model type")
+
+    # Inverse transform
+    dummy_true = np.zeros((len(y_true_scaled), len(features)))
+    dummy_pred = np.zeros((len(y_pred_scaled), len(features)))
+    idx = features.index(feature)
+    dummy_true[:, idx] = y_true_scaled
+    dummy_pred[:, idx] = y_pred_scaled
+    y_true = scaler.inverse_transform(dummy_true)[:, idx]
+    y_pred = scaler.inverse_transform(dummy_pred)[:, idx]
+
+    return y_true, y_pred
+
+
 def plot_predictions(y_true, y_pred, model_name, feature, dates, scaler, features):
     
-#    if dates is not None:
-        # Set dates as index for both series
-#        y_true = pd.Series(y_true.values, index=dates)
-#        y_pred = pd.Series(y_pred, index=dates)
-#    else:
-        # fallback
-#        y_pred = pd.Series(y_pred, index=y_true.index)
-
     # Get index of the current feature in original feature list
     feature_index = features.index(feature)
 
@@ -89,3 +135,4 @@ def plot_predictions(y_true, y_pred, model_name, feature, dates, scaler, feature
     plt.tight_layout()
     plt.savefig(f'plots/{model_name}_{feature}.png')
     plt.close()
+
