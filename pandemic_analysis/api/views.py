@@ -13,7 +13,7 @@ from keras.models import load_model # type: ignore
 from data_analysis.management.commands.preprocess_data import preprocess_data
 from data_analysis.ml_models.utils import evaluate_model, predict_and_inverse, plot_predictions
 from drf_yasg.utils import swagger_auto_schema
-from .serializers import PredictionRequestSerializer
+from .serializers import PredictionRequestSerializer, FeatureListSerializer, DateRangeSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -21,6 +21,7 @@ from rest_framework import status
 
 
 class ModelListAPIView(APIView):
+    @swagger_auto_schema(tags=["1. Models"])
     def get(self, request):
         model_files = os.listdir("trained_models")
         models = set()
@@ -35,7 +36,7 @@ class ModelListAPIView(APIView):
         return Response({"available_models": sorted(models)}, status=status.HTTP_200_OK)
     
 class PredictAPIView(APIView):
-    @swagger_auto_schema(request_body=PredictionRequestSerializer)
+    @swagger_auto_schema(request_body=PredictionRequestSerializer,tags=["4. Predict"])
     def post(self, request):
         serializer = PredictionRequestSerializer(data=request.data)
         if not serializer.is_valid():
@@ -71,7 +72,7 @@ class PredictAPIView(APIView):
         
 
 class EvaluationAPIView(APIView):
-    @swagger_auto_schema(request_body=PredictionRequestSerializer)
+    @swagger_auto_schema(request_body=PredictionRequestSerializer, tags=["5. Evaluation"])
     def post(self, request):
         serializer = PredictionRequestSerializer(data=request.data)
         if not serializer.is_valid():
@@ -126,7 +127,7 @@ def load_model_object(model_name):
 
 
 class PlotAPIView(APIView):
-    @swagger_auto_schema(request_body=PredictionRequestSerializer)
+    @swagger_auto_schema(request_body=PredictionRequestSerializer, tags=["6. Plot"])
     def post(self, request):
         serializer = PredictionRequestSerializer(data=request.data)
         if not serializer.is_valid():
@@ -172,6 +173,23 @@ class PlotAPIView(APIView):
             return FileResponse(open(plot_path, "rb"), content_type="image/png")
         else:
             return JsonResponse({"error": "Plot not found"}, status=404)
+        
+class FeatureListAPIView(APIView):
+    @swagger_auto_schema(responses={200: FeatureListSerializer}, tags=["2. Features"])
+    def get(self, request):
+        features = ['newCases', 'intenciveCareUnit', 'deaths']
+        return Response({"features": features})
+
+
+class DateRangeAPIView(APIView):
+    @swagger_auto_schema(responses={200: DateRangeSerializer}, tags=["3. Dates"])
+    def get(self, request):
+        _, test_data, _ = preprocess_data()
+        start_date = test_data["date"].min().date()
+        end_date = test_data["date"].max().date()
+        return Response({"start_date": start_date, "end_date": end_date})
+
+
 
 
 

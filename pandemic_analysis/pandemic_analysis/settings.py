@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'pandemic_analysis',
     'data_analysis',
     'api',
+    'frontend',
     'drf_yasg',
 ]
 
@@ -126,3 +127,20 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+SWAGGER_SETTINGS = {
+    'DEFAULT_INFO': 'pandemic_analysis.urls.api_info',
+    'DOC_EXPANSION': 'list',
+    'TAGS_SORTER': 'alpha',  # Optional: use 'alpha' to sort tags alphabetically
+    'OPERATIONS_SORTER': 'alpha',
+    'USE_SESSION_AUTH': False,
+    'TAGS': [
+        {'name': '1. Models'},
+        {'name': '2. Features'},
+        {'name': '3. Dates'},
+        {'name': '4. Predict'},
+        {'name': '5. Evaluation'},
+        {'name': '6. Plot'},
+    ]
+}
+
