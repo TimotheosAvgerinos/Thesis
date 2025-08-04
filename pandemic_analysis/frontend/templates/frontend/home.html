@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pandemic Data API Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #1e1e1e;
+            color: #f8f9fa;
+            padding-top: 60px;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .dashboard-card {
+            max-width: 700px;
+            margin: auto;
+            background-color: #2c2c2c;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-weight: bold;
+        }
+
+        .btn-toggle {
+            margin-bottom: 15px;
+            width: 100%;
+            text-align: left;
+            background-color: #343a40;
+            color: #ffffff;
+        }
+
+        .btn-toggle:hover {
+            background-color: #495057;
+        }
+
+        .list-group-item {
+            background-color: #3c3c3c;
+            border: none;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-card">
+        <h1>Pandemic Data API Dashboard</h1>
+
+        <div class="mb-3">
+            <a class="btn btn-primary w-100 mb-2" href="/swagger/">📘 Swagger API Documentation</a>
+        </div>
+
+        <button class="btn btn-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#modelsCollapse" aria-expanded="false">
+            🤖 Available Models
+          </button>
+          <div class="collapse" id="modelsCollapse">
+            <ul id="modelList" class="list-group list-group-flush"></ul>
+          </div>
+
+        <button class="btn btn-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#featuresCollapse" aria-expanded="false">
+            🧬 Available Features
+          </button>
+          <div class="collapse" id="featuresCollapse">
+            <ul id="featureList" class="list-group list-group-flush"></ul>
+          </div>
+
+        <button class="btn btn-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#datesCollapse" aria-expanded="false">
+            📅 Available Dates
+          </button>
+          <div class="collapse" id="datesCollapse">
+            <ul id="dateList" class="list-group list-group-flush"></ul>
+          </div>    
+          
+        <button class="btn btn-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#predictCollapse" aria-expanded="false">
+            🔍 Show Predictions
+        </button>
+        <div class="collapse" id="predictCollapse">
+            <div class="mb-2 mt-2">
+              <select id="predictModelSelect" class="form-select mb-2">
+                <option value="">Select Model</option>
+              </select>
+              <select id="predictFeatureSelect" class="form-select mb-2">
+                <option value="">Select Feature</option>
+              </select>
+              <button id="predictBtn" class="btn btn-outline-light w-100 mb-3">Predict</button>
+            </div>
+            <div id="predictionTableContainer"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+          const modelBtn = document.querySelector('[data-bs-target="#modelsCollapse"]');
+          const featureBtn = document.querySelector('[data-bs-target="#featuresCollapse"]');
+          const dateBtn = document.querySelector('[data-bs-target="#datesCollapse"]');
+          const modelSelect = document.getElementById("predictModelSelect");
+          const featureSelect = document.getElementById("predictFeatureSelect");
+          const predictBtn = document.getElementById("predictBtn");
+    
+          modelBtn.addEventListener("click", () => {
+            const modelList = document.getElementById("modelList");
+            if (modelList.children.length === 0) {
+              fetch("/api/models/")
+                .then(res => res.json())
+                .then(data => {
+                  const models = data.available_models || data;
+                  models.forEach(model => {
+                    const li = document.createElement("li");
+                    li.textContent = model;
+                    li.className = "list-group-item";
+                    modelList.appendChild(li);
+                  });
+                })
+                .catch(err => {
+                  modelList.innerHTML = '<li class="list-group-item text-danger">Error loading data</li>';
+                  console.error(err);
+                });
+            }
+          });
+    
+          featureBtn.addEventListener("click", () => {
+            const featureList = document.getElementById("featureList");
+            if (featureList.children.length === 0) {
+              fetch("/api/features/")
+                .then(res => res.json())
+                .then(data => {
+                  const features = data.features || data;
+                  features.forEach(feature => {
+                    const li = document.createElement("li");
+                    li.textContent = feature;
+                    li.className = "list-group-item";
+                    featureList.appendChild(li);
+                  });
+                })
+                .catch(err => {
+                  featureList.innerHTML = '<li class="list-group-item text-danger">Error loading data</li>';
+                  console.error(err);
+                });
+            }
+          });
+    
+          dateBtn.addEventListener("click", () => {
+            const dateList = document.getElementById("dateList");
+            if (dateList.children.length === 0) {
+              fetch("/api/dates/")
+                .then(res => res.json())
+                .then(data => {
+                  const start = data.start_date;
+                  const end = data.end_date;
+    
+                  const liStart = document.createElement("li");
+                  liStart.textContent = `Start Date: ${start}`;
+                  liStart.className = "list-group-item";
+    
+                  const liEnd = document.createElement("li");
+                  liEnd.textContent = `End Date: ${end}`;
+                  liEnd.className = "list-group-item";
+    
+                  dateList.appendChild(liStart);
+                  dateList.appendChild(liEnd);
+                })
+                .catch(err => {
+                  dateList.innerHTML = '<li class="list-group-item text-danger">Error loading data</li>';
+                  console.error(err);
+                });
+            }
+          });
+
+        fetch("/api/models/")
+           .then(res => res.json())
+           .then(data => {
+            const models = data.available_models || data;
+            models.forEach(model => {
+              const option = document.createElement("option");
+              option.value = model;
+              option.textContent = model;
+              modelSelect.appendChild(option);
+            });
+          });
+        
+        // Populate features
+        fetch("/api/features/")
+          .then(res => res.json())
+          .then(data => {
+            const features = data.features || data;
+            features.forEach(feature => {
+              const option = document.createElement("option");
+              option.value = feature;
+              option.textContent = feature;
+              featureSelect.appendChild(option);
+            });
+          });
+
+        predictBtn.addEventListener("click", () => {
+            const model = modelSelect.value;
+            const feature = featureSelect.value;
+        
+            if (!model || !feature) {
+              predictionTableContainer.innerHTML = '<p class="text-danger">Please select both model and feature.</p>';
+              return;
+            }
+        
+            fetch("/api/predict/", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ model, feature })
+            })
+            .then(res => res.json())
+            .then(data => {
+              const { dates, y_true, y_pred } = data;
+        
+              let tableHTML = `
+                <table class="table table-dark table-striped table-bordered">
+                  <thead>
+                    <tr>
+                      <th scope="col">Date</th>
+                      <th scope="col">Actual</th>
+                      <th scope="col">Predicted</th>
+                    </tr>
+                  </thead>
+                  <tbody>`;
+        
+              for (let i = 0; i < dates.length; i++) {
+                tableHTML += `
+                  <tr>
+                    <td>${dates[i]}</td>
+                    <td>${y_true[i].toFixed(2)}</td>
+                    <td>${y_pred[i].toFixed(2)}</td>
+                  </tr>`;
+              }
+        
+              tableHTML += `</tbody></table>`;
+              predictionTableContainer.innerHTML = tableHTML;
+            })
+            .catch(err => {
+              predictionTableContainer.innerHTML = '<p class="text-danger">Error loading predictions.</p>';
+              console.error(err);
+            });
+          });
+          
+        });
+    </script>  
+</body>
+</html>
