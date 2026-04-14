@@ -17,6 +17,9 @@ from .serializers import PredictionRequestSerializer, FeatureListSerializer, Dat
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import AllowAny
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 
 
 
@@ -35,7 +38,11 @@ class ModelListAPIView(APIView):
 
         return Response({"available_models": sorted(models)}, status=status.HTTP_200_OK)
     
+@method_decorator(csrf_exempt, name='dispatch')    
 class PredictAPIView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
     @swagger_auto_schema(request_body=PredictionRequestSerializer,tags=["4. Predict"])
     def post(self, request):
         serializer = PredictionRequestSerializer(data=request.data)
