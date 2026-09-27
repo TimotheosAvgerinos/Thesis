@@ -1,7 +1,5 @@
 from django.core.management.base import BaseCommand
 import os
-import joblib
-import numpy as np
 from data_analysis.management.commands.preprocess_data import preprocess_data
 from data_analysis.ml_models.algorithms.linear_regression import train_linear_regression
 from data_analysis.ml_models.algorithms.random_forest import train_random_forest
@@ -27,8 +25,7 @@ class Command(BaseCommand):
         train_xgboost(X_train, y_train)
 
         # Train LSTM
-        X_train_reshaped = np.expand_dims(X_train.values, axis=-1)
-        train_lstm(X_train_reshaped, y_train)
+        train_lstm(X_train.values, y_train.values)
 
         # Train ARIMA models per target
         for target in ['newCases', 'intenciveCareUnit', 'deaths']:

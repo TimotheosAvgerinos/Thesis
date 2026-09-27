@@ -9,6 +9,35 @@ matplotlib.use('Agg')  # Use a non-interactive backend for PNGs
 import matplotlib.pyplot as plt
 
 
+def _is_sequence_model(model):
+    input_shape = getattr(model, "input_shape", None)
+    if isinstance(input_shape, list):
+        input_shape = input_shape[0]
+    return input_shape is not None and len(input_shape) == 3
+
+
+def _predict_all_features(model, X_test_scaled):
+    if _is_sequence_model(model):
+        X_test_scaled = np.expand_dims(X_test_scaled.values, axis=1)
+        return np.asarray(model.predict(X_test_scaled, verbose=0))
+    return np.asarray(model.predict(X_test_scaled))
+
+
+def _select_feature_prediction(predictions, feature, features):
+    predictions = np.asarray(predictions)
+    if predictions.ndim == 1:
+        if len(features) == 1:
+            return predictions
+    elif predictions.ndim == 2 and predictions.shape[1] == len(features):
+        return predictions[:, features.index(feature)]
+
+    raise ValueError(
+        "Model output shape does not match the requested features: "
+        f"expected {len(features)} output columns, got {predictions.shape}. "
+        "Retrain the model with the current training command."
+    )
+
+
 
 def evaluate_model(model, test_data, features, return_predictions=False, scaler=None):
     metrics = {}
@@ -22,17 +51,10 @@ def evaluate_model(model, test_data, features, return_predictions=False, scaler=
         if hasattr(model, 'forecast') and 'arima' in str(type(model)).lower():
             y_pred_scaled = model.forecast(steps=len(y_true_scaled))
         elif hasattr(model, 'predict'):
-            if 'lstm' in str(type(model)).lower():
-                X_lstm = np.expand_dims(X_test_scaled.values, axis=1)
-                y_pred_all_scaled = model.predict(X_lstm)
-            else:
-                y_pred_all_scaled = model.predict(X_test_scaled)
-
-            if y_pred_all_scaled.ndim == 2 and y_pred_all_scaled.shape[1] == len(features):
-                idx = features.index(feature)
-                y_pred_scaled = y_pred_all_scaled[:, idx]
-            else:
-                y_pred_scaled = y_pred_all_scaled
+            y_pred_all_scaled = _predict_all_features(model, X_test_scaled)
+            y_pred_scaled = _select_feature_prediction(
+                y_pred_all_scaled, feature, features
+            )
         else:
             continue
 
@@ -76,17 +98,8 @@ def predict_and_inverse(model, test_data, feature, features, scaler):
     if hasattr(model, 'forecast') and 'arima' in str(type(model)).lower():
         y_pred_scaled = model.forecast(steps=len(y_true_scaled))
     elif hasattr(model, 'predict'):
-        if 'lstm' in str(type(model)).lower():
-            X_lstm = np.expand_dims(X_test_scaled.values, axis=1)
-            y_pred_all = model.predict(X_lstm)
-        else:
-            y_pred_all = model.predict(X_test_scaled)
-
-        if y_pred_all.ndim == 2 and y_pred_all.shape[1] == len(features):
-            idx = features.index(feature)
-            y_pred_scaled = y_pred_all[:, idx]
-        else:
-            y_pred_scaled = y_pred_all
+        y_pred_all = _predict_all_features(model, X_test_scaled)
+        y_pred_scaled = _select_feature_prediction(y_pred_all, feature, features)
     else:
         raise ValueError("Unsupported model type")
 
@@ -135,4 +148,3 @@ def plot_predictions(y_true, y_pred, model_name, feature, dates, scaler, feature
     plt.tight_layout()
     plt.savefig(f'plots/{model_name}_{feature}.png')
     plt.close()
-

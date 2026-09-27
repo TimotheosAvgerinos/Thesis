@@ -31,8 +31,12 @@ class ModelListAPIView(APIView):
 
         for file in model_files:
             name, ext = os.path.splitext(file)
+            if ext not in {".pkl", ".keras"}:
+                continue
             if name.startswith("arima"):
                 models.add("arima")
+            elif name == "lstm_model":
+                models.add("lstm")
             else:
                 models.add(name)
 
@@ -58,10 +62,7 @@ class PredictAPIView(APIView):
         features = ['newCases', 'intenciveCareUnit', 'deaths']
 
         try:
-            if model_name == "lstm":
-                model = load_model(f"trained_models/lstm_model.keras")
-            else:
-                model = joblib.load(f"trained_models/{model_name}.pkl")
+            model = load_model_object(model_name)
         except Exception as e:
             return Response({"error": f"Model loading failed: {str(e)}"}, status=500)
         
@@ -92,6 +93,40 @@ class EvaluationAPIView(APIView):
                 {"error": "Please provide 'model' and 'feature' in the request body."},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        # LSTM metrics must match the currently saved model. The CSV may have
+        # been generated before the model was trained or retrained.
+        if model in {"lstm", "lstm_model"}:
+            features = ['newCases', 'intenciveCareUnit', 'deaths']
+            if feature not in features:
+                return Response(
+                    {"error": f"Unknown feature '{feature}'."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                preprocessed = preprocess_data()
+                if preprocessed is None:
+                    return Response(
+                        {"error": "No pandemic data is available for evaluation."},
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    )
+                _, test_data, _ = preprocessed
+                lstm_model = load_model_object(model)
+                # Existing CSV metrics use scaled test data, so keep the same
+                # units for LSTM to make the endpoint's results comparable.
+                metrics = evaluate_model(lstm_model, test_data, features)
+            except (OSError, ValueError) as exc:
+                return Response(
+                    {"error": f"LSTM evaluation failed: {exc}"},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+
+            return Response({
+                "model": "lstm",
+                "feature": feature,
+                **{name: float(value) for name, value in metrics[feature].items()},
+            })
 
         if not os.path.exists('model_evaluation_results.csv'):
             return Response(
@@ -125,12 +160,13 @@ def get_test_data_and_scaler():
     return test_data, scaler, features
 
 def load_model_object(model_name):
-    if model_name == "lstm":
-        model_path = f"trained_models/{model_name}.keras"
+    # Keep accepting the old filename-derived API value for compatibility.
+    if model_name in {"lstm", "lstm_model"}:
+        model_path = "trained_models/lstm_model.keras"
         return load_model(model_path)
-    else:
-        model_path = f"trained_models/{model_name}.pkl"
-        return joblib.load(model_path)
+
+    model_path = f"trained_models/{model_name}.pkl"
+    return joblib.load(model_path)
 
 
 class PlotAPIView(APIView):
@@ -151,12 +187,7 @@ class PlotAPIView(APIView):
         dates = test_data["date"].values
 
         # Load model
-        if model_name == "lstm_model":
-            model_path = os.path.join("trained_models", f"{model_name}.keras")
-            model = load_model(model_path)
-        else:
-            model_path = os.path.join("trained_models", f"{model_name}.pkl")
-            model = joblib.load(model_path)
+        model = load_model_object(model_name)
 
         # Get predictions
         _, preds = evaluate_model(model, test_data, features, return_predictions=True, scaler=scaler)
@@ -195,8 +226,6 @@ class DateRangeAPIView(APIView):
         start_date = test_data["date"].min().date()
         end_date = test_data["date"].max().date()
         return Response({"start_date": start_date, "end_date": end_date})
-
-
 
 
 

@@ -18,7 +18,7 @@ def evaluate_models():
     models = {}
     for model_name in ["linear_regression", "random_forest", "arima", "lstm", "xgboost"]:
         if model_name == "lstm":
-            model_path = f"trained_models/{model_name}.keras"
+            model_path = "trained_models/lstm_model.keras"
             if os.path.exists(model_path):
                 models[model_name] = load_model(model_path)
         else:
