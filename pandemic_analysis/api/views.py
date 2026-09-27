@@ -190,7 +190,9 @@ class PlotAPIView(APIView):
         model = load_model_object(model_name)
 
         # Get predictions
-        _, preds = evaluate_model(model, test_data, features, return_predictions=True, scaler=scaler)
+        # plot_predictions performs the inverse transform itself, so keep the
+        # values scaled here to avoid applying the scaler twice.
+        _, preds = evaluate_model(model, test_data, features, return_predictions=True)
         y_true = preds[feature]["y_true"]
         y_pred = preds[feature]["y_pred"]
 
@@ -226,6 +228,5 @@ class DateRangeAPIView(APIView):
         start_date = test_data["date"].min().date()
         end_date = test_data["date"].max().date()
         return Response({"start_date": start_date, "end_date": end_date})
-
 
 

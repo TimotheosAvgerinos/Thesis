@@ -3,7 +3,12 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory
 
-from api.views import EvaluationAPIView, ModelListAPIView, load_model_object
+from api.views import (
+    EvaluationAPIView,
+    ModelListAPIView,
+    PlotAPIView,
+    load_model_object,
+)
 
 
 class ModelLoadingTests(SimpleTestCase):
@@ -79,3 +84,59 @@ class LstmEvaluationTests(SimpleTestCase):
         response = EvaluationAPIView.as_view()(request)
 
         self.assertEqual(response.status_code, 400)
+
+
+class PlotTests(SimpleTestCase):
+    @patch("api.views.os.path.exists", return_value=False)
+    @patch("api.views.plot_predictions")
+    @patch("api.views.evaluate_model")
+    @patch("api.views.load_model_object")
+    @patch("api.views.preprocess_data")
+    def test_plot_predictions_are_only_inverse_scaled_once(
+        self,
+        mocked_preprocess,
+        mocked_load,
+        mocked_evaluate,
+        mocked_plot,
+        _mocked_exists,
+    ):
+        class DateColumn:
+            values = ["2022-01-22"]
+
+        class TestData:
+            def __getitem__(self, key):
+                if key == "date":
+                    return DateColumn()
+                raise KeyError(key)
+
+        test_data = TestData()
+        scaler = object()
+        model = mocked_load.return_value
+        mocked_preprocess.return_value = (object(), test_data, scaler)
+        mocked_evaluate.return_value = ({}, {
+            "newCases": {"y_true": [0.1], "y_pred": [0.2]},
+        })
+
+        request = APIRequestFactory().post(
+            "/api/plot/",
+            {"model": "linear_regression", "feature": "newCases"},
+            format="json",
+        )
+        response = PlotAPIView.as_view()(request)
+
+        self.assertEqual(response.status_code, 404)
+        mocked_evaluate.assert_called_once_with(
+            model,
+            test_data,
+            ["newCases", "intenciveCareUnit", "deaths"],
+            return_predictions=True,
+        )
+        mocked_plot.assert_called_once_with(
+            y_true=[0.1],
+            y_pred=[0.2],
+            model_name="linear_regression",
+            feature="newCases",
+            dates=["2022-01-22"],
+            scaler=scaler,
+            features=["newCases", "intenciveCareUnit", "deaths"],
+        )

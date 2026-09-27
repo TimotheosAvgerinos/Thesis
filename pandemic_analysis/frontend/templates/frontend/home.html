@@ -3,6 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <title>Pandemic Data API Dashboard</title>
+    <script>
+        // This dashboard depends on Django's API and cannot run as a file.
+        if (window.location.protocol === "file:") {
+            window.location.replace("http://127.0.0.1:8000/");
+        }
+    </script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -91,6 +97,39 @@
             </div>
             <div id="predictionTableContainer"></div>
         </div>
+
+        <button class="btn btn-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#evaluationCollapse" aria-expanded="false">
+            📊 Show Evaluation
+        </button>
+        <div class="collapse" id="evaluationCollapse">
+            <div class="mb-2 mt-2">
+              <select id="evaluationModelSelect" class="form-select mb-2">
+                <option value="">Select Model</option>
+              </select>
+              <select id="evaluationFeatureSelect" class="form-select mb-2">
+                <option value="">Select Feature</option>
+              </select>
+              <button id="evaluationBtn" class="btn btn-outline-light w-100 mb-3">Evaluate</button>
+            </div>
+            <div id="evaluationResultContainer"></div>
+        </div>
+
+        <button class="btn btn-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#plotCollapse" aria-expanded="false">
+            📈 Show Plot
+        </button>
+        <div class="collapse" id="plotCollapse">
+            <div class="mb-2 mt-2">
+              <select id="plotModelSelect" class="form-select mb-2">
+                <option value="">Select Model</option>
+              </select>
+              <select id="plotFeatureSelect" class="form-select mb-2">
+                <option value="">Select Feature</option>
+              </select>
+              <button id="plotBtn" class="btn btn-outline-light w-100 mb-3">Generate Plot</button>
+            </div>
+            <div id="plotStatus" aria-live="polite"></div>
+            <img id="plotImage" alt="">
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -102,6 +141,17 @@
           const modelSelect = document.getElementById("predictModelSelect");
           const featureSelect = document.getElementById("predictFeatureSelect");
           const predictBtn = document.getElementById("predictBtn");
+          const predictionTableContainer = document.getElementById("predictionTableContainer");
+          const evaluationModelSelect = document.getElementById("evaluationModelSelect");
+          const evaluationFeatureSelect = document.getElementById("evaluationFeatureSelect");
+          const evaluationBtn = document.getElementById("evaluationBtn");
+          const evaluationResultContainer = document.getElementById("evaluationResultContainer");
+          const plotModelSelect = document.getElementById("plotModelSelect");
+          const plotFeatureSelect = document.getElementById("plotFeatureSelect");
+          const plotBtn = document.getElementById("plotBtn");
+          const plotStatus = document.getElementById("plotStatus");
+          const plotImage = document.getElementById("plotImage");
+          let plotObjectUrl = null;
     
           modelBtn.addEventListener("click", () => {
             const modelList = document.getElementById("modelList");
@@ -177,10 +227,12 @@
            .then(data => {
             const models = data.available_models || data;
             models.forEach(model => {
-              const option = document.createElement("option");
-              option.value = model;
-              option.textContent = model;
-              modelSelect.appendChild(option);
+              [modelSelect, evaluationModelSelect, plotModelSelect].forEach(select => {
+                const option = document.createElement("option");
+                option.value = model;
+                option.textContent = model;
+                select.appendChild(option);
+              });
             });
           });
         
@@ -190,10 +242,12 @@
           .then(data => {
             const features = data.features || data;
             features.forEach(feature => {
-              const option = document.createElement("option");
-              option.value = feature;
-              option.textContent = feature;
-              featureSelect.appendChild(option);
+              [featureSelect, evaluationFeatureSelect, plotFeatureSelect].forEach(select => {
+                const option = document.createElement("option");
+                option.value = feature;
+                option.textContent = feature;
+                select.appendChild(option);
+              });
             });
           });
 
@@ -243,6 +297,122 @@
               console.error(err);
             });
           });
+
+        evaluationBtn.addEventListener("click", () => {
+          const model = evaluationModelSelect.value;
+          const feature = evaluationFeatureSelect.value;
+
+          if (!model || !feature) {
+            evaluationResultContainer.innerHTML = '<p class="text-danger">Please select both model and feature.</p>';
+            return;
+          }
+
+          evaluationBtn.disabled = true;
+          evaluationResultContainer.innerHTML = '<p class="text-secondary">Loading evaluation...</p>';
+
+          fetch("/api/evaluation/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model, feature })
+          })
+          .then(async response => {
+            const data = await response.json();
+            if (!response.ok) {
+              throw new Error(data.error || "Evaluation request failed.");
+            }
+            return data;
+          })
+          .then(data => {
+            const table = document.createElement("table");
+            table.className = "table table-dark table-striped table-bordered";
+
+            const tbody = document.createElement("tbody");
+            [
+              ["Model", data.model],
+              ["Feature", data.feature],
+              ["MAE", Number(data.MAE).toFixed(4)],
+              ["MSE", Number(data.MSE).toFixed(4)],
+              ["R²", Number(data.R2).toFixed(4)]
+            ].forEach(([label, value]) => {
+              const row = document.createElement("tr");
+              const labelCell = document.createElement("th");
+              const valueCell = document.createElement("td");
+              labelCell.scope = "row";
+              labelCell.textContent = label;
+              valueCell.textContent = value;
+              row.append(labelCell, valueCell);
+              tbody.appendChild(row);
+            });
+
+            table.appendChild(tbody);
+            evaluationResultContainer.replaceChildren(table);
+          })
+          .catch(error => {
+            const message = document.createElement("p");
+            message.className = "text-danger";
+            message.textContent = error.message;
+            evaluationResultContainer.replaceChildren(message);
+          })
+          .finally(() => {
+            evaluationBtn.disabled = false;
+          });
+        });
+
+        plotBtn.addEventListener("click", () => {
+          const model = plotModelSelect.value;
+          const feature = plotFeatureSelect.value;
+
+          if (!model || !feature) {
+            plotStatus.innerHTML = '<p class="text-danger">Please select both model and feature.</p>';
+            plotImage.style.display = "none";
+            return;
+          }
+
+          plotBtn.disabled = true;
+          plotStatus.innerHTML = '<p class="text-secondary">Generating plot...</p>';
+          plotImage.style.display = "none";
+
+          fetch("/api/plot/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model, feature })
+          })
+          .then(async response => {
+            if (!response.ok) {
+              const contentType = response.headers.get("content-type") || "";
+              const error = contentType.includes("application/json")
+                ? await response.json()
+                : { error: await response.text() };
+              throw new Error(error.error || "Plot request failed.");
+            }
+            return response.blob();
+          })
+          .then(blob => {
+            if (plotObjectUrl) {
+              URL.revokeObjectURL(plotObjectUrl);
+            }
+            plotObjectUrl = URL.createObjectURL(blob);
+            plotImage.src = plotObjectUrl;
+            plotImage.alt = `${model} ${feature} actual and predicted values plot`;
+            plotImage.style.display = "block";
+            plotStatus.replaceChildren();
+          })
+          .catch(error => {
+            const message = document.createElement("p");
+            message.className = "text-danger";
+            message.textContent = error.message;
+            plotStatus.replaceChildren(message);
+          })
+          .finally(() => {
+            plotBtn.disabled = false;
+          });
+        });
+
+        window.addEventListener("beforeunload", () => {
+          if (plotObjectUrl) {
+            URL.revokeObjectURL(plotObjectUrl);
+          }
+        });
           
         });
     </script>  
